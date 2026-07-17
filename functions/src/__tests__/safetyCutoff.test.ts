@@ -64,7 +64,12 @@ describe('runSafetyCutoffSweep', () => {
       id: 'iron-1',
       ref: {
         update: jest.fn().mockResolvedValue(undefined),
-        parent: { parent: { id: 'floor-1' } },
+        parent: {
+          parent: {
+            id: 'floor-1',
+            parent: { parent: { id: 'demo-household' } },
+          },
+        },
       },
       data: () => ({
         type: 'safety',
@@ -107,5 +112,80 @@ describe('runSafetyCutoffSweep', () => {
     expect(addUsageLog).toHaveBeenCalled();
     expect(addAlert).toHaveBeenCalled();
     expect(send).toHaveBeenCalled();
+  });
+
+  it('ignores breached safety devices belonging to a different household', async () => {
+    const demoDoc = {
+      id: 'iron-demo',
+      ref: {
+        update: jest.fn().mockResolvedValue(undefined),
+        parent: {
+          parent: {
+            id: 'floor-1',
+            parent: { parent: { id: 'demo-household' } },
+          },
+        },
+      },
+      data: () => ({
+        type: 'safety',
+        name: 'Demo Iron',
+        row: 0,
+        col: 0,
+        status: 'ON',
+        maxOnDurationSec: 120,
+        turnedOnAt: 0,
+      }),
+    };
+
+    const otherHouseholdDoc = {
+      id: 'iron-other',
+      ref: {
+        update: jest.fn().mockResolvedValue(undefined),
+        parent: {
+          parent: {
+            id: 'floor-9',
+            parent: { parent: { id: 'other-household' } },
+          },
+        },
+      },
+      data: () => ({
+        type: 'safety',
+        name: 'Other Iron',
+        row: 0,
+        col: 0,
+        status: 'ON',
+        maxOnDurationSec: 120,
+        turnedOnAt: 0,
+      }),
+    };
+
+    const devicesSnapshot = { docs: [demoDoc, otherHouseholdDoc] };
+
+    const collectionGroup = jest.fn().mockResolvedValue(devicesSnapshot);
+    const addUsageLog = jest.fn().mockResolvedValue(undefined);
+    const addAlert = jest.fn().mockResolvedValue(undefined);
+
+    const db = {
+      collectionGroup: () => ({ where: () => ({ where: () => ({ get: collectionGroup }) }) }),
+      collection: (name: string) => ({
+        doc: () => ({
+          collection: (sub: string) => ({
+            add: sub === 'usageLogs' ? addUsageLog : addAlert,
+          }),
+        }),
+      }),
+    } as unknown as FirebaseFirestore.Firestore;
+
+    const send = jest.fn().mockResolvedValue('message-id');
+    const messaging = { send } as unknown as admin.messaging.Messaging;
+
+    const count = await runSafetyCutoffSweep(db, messaging, 121_000);
+
+    expect(count).toBe(1);
+    expect(demoDoc.ref.update).toHaveBeenCalledWith({ status: 'OFF', turnedOnAt: null });
+    expect(otherHouseholdDoc.ref.update).not.toHaveBeenCalled();
+    expect(addUsageLog).toHaveBeenCalledTimes(1);
+    expect(addAlert).toHaveBeenCalledTimes(1);
+    expect(send).toHaveBeenCalledTimes(1);
   });
 });

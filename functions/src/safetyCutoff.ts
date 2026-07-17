@@ -55,7 +55,16 @@ export async function runSafetyCutoffSweep(
     .where('status', '==', 'ON')
     .get();
 
-  const devices: Device[] = snapshot.docs.map((doc) => ({
+  // collectionGroup('devices') queries every households/{id}/floors/{id}/devices
+  // subcollection in the entire project, not just the demo household. Scope
+  // defensively to HOUSEHOLD_ID so a stray/staging/test household document
+  // elsewhere in Firestore can never have its devices cut off (or its usage
+  // logs/alerts misfiled) under demo-household.
+  const scopedDocs = snapshot.docs.filter(
+    (doc) => doc.ref.parent.parent?.parent?.parent?.id === HOUSEHOLD_ID
+  );
+
+  const devices: Device[] = scopedDocs.map((doc) => ({
     id: doc.id,
     ...(doc.data() as Omit<Device, 'id'>),
   }));
@@ -64,8 +73,8 @@ export async function runSafetyCutoffSweep(
 
   for (const result of results) {
     // computeCutoffs filters out devices that didn't breach, so `results` is a
-    // subsequence of `snapshot.docs` — pair by device id, not by index.
-    const doc = snapshot.docs.find((d) => d.id === result.device.id)!;
+    // subsequence of `scopedDocs` — pair by device id, not by index.
+    const doc = scopedDocs.find((d) => d.id === result.device.id)!;
     const floorId = doc.ref.parent.parent?.id ?? '';
 
     await doc.ref.update({ status: 'OFF', turnedOnAt: null });
