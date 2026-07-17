@@ -1,5 +1,6 @@
-import { computeCutoffs } from '../safetyCutoff';
+import { computeCutoffs, runSafetyCutoffSweep } from '../safetyCutoff';
 import { Device } from '../types';
+import * as admin from 'firebase-admin';
 
 const baseDevice = (overrides: Partial<Device>): Device => ({
   id: 'd1',
@@ -54,5 +55,57 @@ describe('computeCutoffs', () => {
     const results = computeCutoffs(devices, now);
     expect(results).toHaveLength(1);
     expect(results[0].device.id).toBe('a');
+  });
+});
+
+describe('runSafetyCutoffSweep', () => {
+  it('writes OFF status, usage log, alert, and sends FCM push for a breached device', async () => {
+    const breachedDoc = {
+      id: 'iron-1',
+      ref: {
+        update: jest.fn().mockResolvedValue(undefined),
+        parent: { parent: { id: 'floor-1' } },
+      },
+      data: () => ({
+        type: 'safety',
+        name: 'Iron',
+        row: 0,
+        col: 0,
+        status: 'ON',
+        maxOnDurationSec: 120,
+        turnedOnAt: 0,
+      }),
+    };
+
+    const floorRef = { id: 'floor-1' };
+
+    const devicesSnapshot = { docs: [breachedDoc] };
+    const floorsSnapshot = { docs: [{ ref: floorRef, id: 'floor-1' }] };
+
+    const collectionGroup = jest.fn().mockResolvedValue(devicesSnapshot);
+    const addUsageLog = jest.fn().mockResolvedValue(undefined);
+    const addAlert = jest.fn().mockResolvedValue(undefined);
+
+    const db = {
+      collectionGroup: () => ({ where: () => ({ where: () => ({ get: collectionGroup }) }) }),
+      collection: (name: string) => ({
+        doc: () => ({
+          collection: (sub: string) => ({
+            add: sub === 'usageLogs' ? addUsageLog : addAlert,
+          }),
+        }),
+      }),
+    } as unknown as FirebaseFirestore.Firestore;
+
+    const send = jest.fn().mockResolvedValue('message-id');
+    const messaging = { send } as unknown as admin.messaging.Messaging;
+
+    const count = await runSafetyCutoffSweep(db, messaging, 121_000);
+
+    expect(count).toBe(1);
+    expect(breachedDoc.ref.update).toHaveBeenCalledWith({ status: 'OFF', turnedOnAt: null });
+    expect(addUsageLog).toHaveBeenCalled();
+    expect(addAlert).toHaveBeenCalled();
+    expect(send).toHaveBeenCalled();
   });
 });

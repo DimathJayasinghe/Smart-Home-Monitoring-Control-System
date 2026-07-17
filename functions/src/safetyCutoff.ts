@@ -1,4 +1,8 @@
+import * as admin from 'firebase-admin';
+import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { Device, UsageLog, Alert } from './types';
+
+const HOUSEHOLD_ID = 'demo-household';
 
 export interface CutoffResult {
   device: Device;
@@ -39,3 +43,56 @@ export function computeCutoffs(devices: Device[], nowMs: number): CutoffResult[]
 
   return results;
 }
+
+export async function runSafetyCutoffSweep(
+  db: FirebaseFirestore.Firestore,
+  messaging: admin.messaging.Messaging,
+  nowMs: number
+): Promise<number> {
+  const snapshot = await db
+    .collectionGroup('devices')
+    .where('type', '==', 'safety')
+    .where('status', '==', 'ON')
+    .get();
+
+  const devices: Device[] = snapshot.docs.map((doc) => ({
+    id: doc.id,
+    ...(doc.data() as Omit<Device, 'id'>),
+  }));
+
+  const results = computeCutoffs(devices, nowMs);
+
+  for (let i = 0; i < results.length; i++) {
+    const result = results[i];
+    const doc = snapshot.docs[i];
+    const floorId = doc.ref.parent.parent?.id ?? '';
+
+    await doc.ref.update({ status: 'OFF', turnedOnAt: null });
+
+    const householdRef = db.collection('households').doc(HOUSEHOLD_ID);
+    await householdRef.collection('usageLogs').add({
+      ...result.usageLog,
+      floorId,
+    });
+    await householdRef.collection('alerts').add({
+      ...result.alert,
+      floorId,
+    });
+
+    await messaging.send({
+      topic: 'household_alerts',
+      notification: {
+        title: 'Safety Cutoff Triggered',
+        body: result.alert.message,
+      },
+    });
+  }
+
+  return results.length;
+}
+
+export const onSafetyCutoffSchedule = onSchedule('every 1 minutes', async () => {
+  const db = admin.firestore();
+  const messaging = admin.messaging();
+  await runSafetyCutoffSweep(db, messaging, Date.now());
+});
