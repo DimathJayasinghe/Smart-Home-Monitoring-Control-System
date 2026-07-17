@@ -1,4 +1,8 @@
+import * as admin from 'firebase-admin';
+import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { Device, UsageLog } from './types';
+
+const HOUSEHOLD_ID = 'demo-household';
 
 export interface ScheduleAction {
   device: Device;
@@ -48,3 +52,59 @@ export function computeScheduleActions(devices: Device[], nowHHMM: string): Sche
 
   return actions;
 }
+
+function currentHHMM(): string {
+  const now = new Date();
+  const h = String(now.getHours()).padStart(2, '0');
+  const m = String(now.getMinutes()).padStart(2, '0');
+  return `${h}:${m}`;
+}
+
+export async function runScheduleSweep(
+  db: FirebaseFirestore.Firestore,
+  nowHHMM: string
+): Promise<number> {
+  const snapshot = await db
+    .collectionGroup('devices')
+    .where('schedule.enabled', '==', true)
+    .get();
+
+  // collectionGroup('devices') queries every households/{id}/floors/{id}/devices
+  // subcollection in the entire project, not just the demo household. Scope
+  // defensively to HOUSEHOLD_ID so a stray/staging/test household document
+  // elsewhere in Firestore can never be flipped (or have its usage logs
+  // misfiled) under demo-household.
+  const scopedDocs = snapshot.docs.filter(
+    (doc) => doc.ref.parent.parent?.parent?.parent?.id === HOUSEHOLD_ID
+  );
+
+  const devices: Device[] = scopedDocs.map((doc) => ({
+    id: doc.id,
+    ...(doc.data() as Omit<Device, 'id'>),
+  }));
+
+  const actions = computeScheduleActions(devices, nowHHMM);
+
+  for (const action of actions) {
+    // computeScheduleActions filters out devices already in the correct
+    // ON/OFF state, so `actions` is a subsequence of `scopedDocs` — pair by
+    // device id, not by index.
+    const doc = scopedDocs.find((d) => d.id === action.device.id)!;
+    const floorId = doc.ref.parent.parent?.id ?? '';
+
+    await doc.ref.update({ status: action.device.status });
+
+    const householdRef = db.collection('households').doc(HOUSEHOLD_ID);
+    await householdRef.collection('usageLogs').add({
+      ...action.usageLog,
+      floorId,
+    });
+  }
+
+  return actions.length;
+}
+
+export const onScheduleWorkerSchedule = onSchedule('every 1 minutes', async () => {
+  const db = admin.firestore();
+  await runScheduleSweep(db, currentHHMM());
+});
