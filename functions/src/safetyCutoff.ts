@@ -62,9 +62,10 @@ export async function runSafetyCutoffSweep(
 
   const results = computeCutoffs(devices, nowMs);
 
-  for (let i = 0; i < results.length; i++) {
-    const result = results[i];
-    const doc = snapshot.docs[i];
+  for (const result of results) {
+    // computeCutoffs filters out devices that didn't breach, so `results` is a
+    // subsequence of `snapshot.docs` — pair by device id, not by index.
+    const doc = snapshot.docs.find((d) => d.id === result.device.id)!;
     const floorId = doc.ref.parent.parent?.id ?? '';
 
     await doc.ref.update({ status: 'OFF', turnedOnAt: null });
