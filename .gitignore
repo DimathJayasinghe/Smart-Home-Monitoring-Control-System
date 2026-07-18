@@ -1,0 +1,8 @@
+node_modules/
+functions/lib/
+*-debug.log
+.firebase/
+
+# Local-only planning docs — not part of the submission repo
+/docs/
+/CS_Mini-Project-v1.pdf
