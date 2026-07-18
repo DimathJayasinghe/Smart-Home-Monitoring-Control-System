@@ -1,9 +1,9 @@
 // simulator/src/lib/deviceWrites.integration.test.ts
 import { describe, it, expect, beforeAll } from 'vitest';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
-import { createUserWithEmailAndPassword, signInWithEmailAndPassword } from 'firebase/auth';
-import { db, auth } from '../firebase';
+import { db } from '../firebase';
 import { updateDeviceStatus, toggleSwitch, cycleSnapshot } from './deviceWrites';
+import { ensureSignedIn } from '../testUtils/ensureSignedIn';
 import type { Device, SwitchState } from '../types';
 
 const HOUSEHOLD_ID = 'demo-household';
@@ -11,14 +11,6 @@ const FLOOR_ID = 'floor-1';
 
 function deviceRef(deviceId: string) {
   return doc(db, `households/${HOUSEHOLD_ID}/floors/${FLOOR_ID}/devices/${deviceId}`);
-}
-
-async function ensureSignedIn() {
-  try {
-    await signInWithEmailAndPassword(auth, 'test@example.com', 'password123');
-  } catch {
-    await createUserWithEmailAndPassword(auth, 'test@example.com', 'password123');
-  }
 }
 
 describe('deviceWrites', () => {

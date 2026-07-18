@@ -2,17 +2,9 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import { doc, setDoc } from 'firebase/firestore';
-import { createUserWithEmailAndPassword, signInWithEmailAndPassword } from 'firebase/auth';
-import { db, auth } from '../firebase';
+import { db } from '../firebase';
 import { useFloors } from './useFloors';
-
-async function ensureSignedIn() {
-  try {
-    await signInWithEmailAndPassword(auth, 'test@example.com', 'password123');
-  } catch {
-    await createUserWithEmailAndPassword(auth, 'test@example.com', 'password123');
-  }
-}
+import { ensureSignedIn } from '../testUtils/ensureSignedIn';
 
 function FloorsList() {
   const { floors, loading } = useFloors();
