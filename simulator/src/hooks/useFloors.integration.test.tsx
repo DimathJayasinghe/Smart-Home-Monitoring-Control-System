@@ -1,7 +1,7 @@
 // simulator/src/hooks/useFloors.integration.test.tsx
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
-import { doc, setDoc } from 'firebase/firestore';
+import { doc, setDoc, deleteDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useFloors } from './useFloors';
 import { ensureSignedIn } from '../testUtils/ensureSignedIn';
@@ -29,11 +29,28 @@ describe('useFloors', () => {
     });
   });
 
+  afterAll(async () => {
+    // useFloors queries the *entire* floors collection (no per-test
+    // scoping), and other integration test files share this emulator
+    // session under fileParallelism: false. Clean up our fixtures so we
+    // don't leak floors into the shared `demo-household` collection for
+    // whichever file runs next.
+    await deleteDoc(doc(db, 'households/demo-household/floors/floor-1'));
+    await deleteDoc(doc(db, 'households/demo-household/floors/floor-2'));
+  });
+
   it('lists floors ordered by the order field', async () => {
     render(<FloorsList />);
-    await waitFor(() => expect(screen.getAllByRole('listitem')).toHaveLength(2));
-    const items = screen.getAllByRole('listitem');
-    expect(items[0].textContent).toBe('Ground Floor');
-    expect(items[1].textContent).toBe('Second Floor');
+    // Assert presence and relative order, not an exact collection count --
+    // the collection is shared across integration test files, so other
+    // files' fixtures (cleaned up or not) must not be able to break this
+    // assertion.
+    await waitFor(() => {
+      const names = screen.getAllByRole('listitem').map((li) => li.textContent);
+      expect(names).toContain('Ground Floor');
+      expect(names).toContain('Second Floor');
+    });
+    const names = screen.getAllByRole('listitem').map((li) => li.textContent);
+    expect(names.indexOf('Ground Floor')).toBeLessThan(names.indexOf('Second Floor'));
   });
 });
