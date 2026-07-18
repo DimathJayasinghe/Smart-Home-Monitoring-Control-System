@@ -56,4 +56,11 @@ describe('firestore.rules', () => {
       authedDb.doc('households/demo-household/floors/floor-1').set({ name: 'Ground Floor' })
     );
   });
+
+  it('allows an authenticated client to read the household document itself', async () => {
+    const authedDb = testEnv.authenticatedContext('user-1').firestore();
+    await assertSucceeds(
+      authedDb.doc('households/demo-household').get()
+    );
+  });
 });
