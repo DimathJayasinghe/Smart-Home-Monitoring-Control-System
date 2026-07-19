@@ -1,4 +1,6 @@
 import { updateDeviceStatus } from '../lib/deviceWrites';
+import { MultiSwitchControls } from './MultiSwitchControls';
+import { CameraControls } from './CameraControls';
 import type { Device, DeviceStatus } from '../types';
 
 const STATUSES: DeviceStatus[] = ['ON', 'OFF', 'ERROR', 'DISCONNECTED'];
@@ -20,6 +22,8 @@ export function DeviceCard({ floorId, device }: { floorId: string; device: Devic
           </button>
         ))}
       </div>
+      {device.type === 'multiswitch' && <MultiSwitchControls floorId={floorId} device={device} />}
+      {device.type === 'camera' && <CameraControls floorId={floorId} device={device} />}
     </div>
   );
 }
