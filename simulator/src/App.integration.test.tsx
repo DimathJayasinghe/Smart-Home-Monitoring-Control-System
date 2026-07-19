@@ -3,19 +3,10 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { doc, setDoc, deleteDoc } from 'firebase/firestore';
-import { signOut, signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
+import { signOut, signInWithEmailAndPassword } from 'firebase/auth';
 import { db, auth } from './firebase';
 import App from './App';
-
-async function ensureDemoUserExists() {
-  const email = import.meta.env.VITE_DEMO_EMAIL as string;
-  const password = import.meta.env.VITE_DEMO_PASSWORD as string;
-  try {
-    await createUserWithEmailAndPassword(auth, email, password);
-  } catch {
-    // already exists from a prior run in this same emulator session — fine
-  }
-}
+import { ensureDemoUserExists } from './testUtils/ensureDemoUser';
 
 describe('App', () => {
   beforeAll(async () => {

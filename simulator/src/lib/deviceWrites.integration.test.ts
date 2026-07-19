@@ -1,6 +1,6 @@
 // simulator/src/lib/deviceWrites.integration.test.ts
-import { describe, it, expect, beforeAll } from 'vitest';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { doc, getDoc, setDoc, deleteDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { updateDeviceStatus, toggleSwitch, cycleSnapshot } from './deviceWrites';
 import { ensureSignedIn } from '../testUtils/ensureSignedIn';
@@ -16,6 +16,17 @@ function deviceRef(deviceId: string) {
 describe('deviceWrites', () => {
   beforeAll(async () => {
     await ensureSignedIn();
+  });
+
+  afterAll(async () => {
+    // These docs live under floor-1, which useFloors.integration.test.tsx
+    // also uses -- clean up so no device subcollection docs linger under a
+    // floor id another file's assertions touch.
+    await deleteDoc(deviceRef('outlet-test'));
+    await deleteDoc(deviceRef('iron-test'));
+    await deleteDoc(deviceRef('iron-test-2'));
+    await deleteDoc(deviceRef('multiswitch-test'));
+    await deleteDoc(deviceRef('camera-test'));
   });
 
   it('updateDeviceStatus flips a plain outlet status', async () => {

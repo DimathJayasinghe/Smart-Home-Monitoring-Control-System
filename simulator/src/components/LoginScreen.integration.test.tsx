@@ -1,19 +1,10 @@
 // simulator/src/components/LoginScreen.integration.test.tsx
 import { describe, it, expect, vi, beforeEach, beforeAll } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
-import { signOut, createUserWithEmailAndPassword } from 'firebase/auth';
+import { signOut } from 'firebase/auth';
 import { auth } from '../firebase';
 import { LoginScreen } from './LoginScreen';
-
-async function ensureDemoUserExists() {
-  const email = import.meta.env.VITE_DEMO_EMAIL as string;
-  const password = import.meta.env.VITE_DEMO_PASSWORD as string;
-  try {
-    await createUserWithEmailAndPassword(auth, email, password);
-  } catch {
-    // already exists from a prior run in this same emulator session — fine
-  }
-}
+import { ensureDemoUserExists } from '../testUtils/ensureDemoUser';
 
 describe('LoginScreen', () => {
   beforeAll(async () => {

@@ -1,7 +1,7 @@
 // simulator/src/hooks/useDevices.integration.test.tsx
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
-import { doc, setDoc } from 'firebase/firestore';
+import { doc, setDoc, deleteDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useDevices } from './useDevices';
 import { ensureSignedIn } from '../testUtils/ensureSignedIn';
@@ -24,6 +24,10 @@ describe('useDevices', () => {
     await setDoc(doc(db, 'households/demo-household/floors/floor-x/devices/dev-1'), {
       type: 'outlet', name: 'Test Device 1', row: 0, col: 0, status: 'OFF',
     });
+  });
+
+  afterAll(async () => {
+    await deleteDoc(doc(db, 'households/demo-household/floors/floor-x/devices/dev-1'));
   });
 
   it('lists devices for the given floor', async () => {
